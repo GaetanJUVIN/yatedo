@@ -48,19 +48,18 @@ module Yatedo
 
 		def initialize(nokogiri_object, options)
 			@options 	= options
-			@page 		= nokogiri_object
-			headline 	= @page.search('.vcardtitle')
+			page 		= nokogiri_object
+			headline 	= page.search('.vcardtitle')
 
-			agent 		= http_client
-			cookie = Mechanize::Cookie.new :domain => '.yatedo.fr', name: 'yatedo[rlg]', value: 'fr', :path => '/', :expires => (Date.today + 1).to_s
-			agent.cookie_jar << cookie
+			@agent 		= http_client
+			@agent.cookie_jar << (Mechanize::Cookie.new :domain => '.yatedo.fr', name: 'yatedo[rlg]', value: 'fr', :path => '/', :expires => (Date.today + 1).to_s)
 
 			@url = if headline.at('a')
 				'http://www.yatedo.fr' + headline.at('a')['href']
 			else
 				headline.at('span')['_ym_href']
 			end
-			@page  		= agent.get(@url)
+			@first_name, @last_name = nokogiri_object.at('.vcardtitle').text.split(' ')
 		end
 
 	    def parse_date(date)
@@ -74,40 +73,44 @@ module Yatedo
 			end
 	    end
 
+	    def page
+			@page ||= @agent.get(@url)
+	    end
+
 	    def name
 	      "#{first_name} #{last_name}"
 	    end
 
 	    def first_name
-			@first_name ||= @page.at('.p_name_header').text.rpartition(' ').first if @page.at('.p_name_header')
+			@first_name ||= (page.at('.p_name_header').text.rpartition(' ').first if page.at('.p_name_header'))
 	    end
 
 	    def last_name
-			@last_name ||= @page.at('.p_name_header').text.rpartition(' ').last if @page.at('.p_name_header')
+			@last_name ||= (page.at('.p_name_header').text.rpartition(' ').last if page.at('.p_name_header'))
 	    end
 
 	    def title
-			@title ||= @page.at('.p_headline_header').text.strip if @page.at('.p_headline_header')
+			@title ||= page.at('.p_headline_header').text.strip if page.at('.p_headline_header')
 	    end
 
 	    def location
-	    	@location ||= @page.at('.p_location_header').text.rpartition(',').first.strip if @page.at('.p_location_header')
+	    	@location ||= page.at('.p_location_header').text.rpartition(',').first.strip if page.at('.p_location_header')
 	    end
 
 	    def country
-	    	@country ||= @page.at('.p_location_header').text.rpartition(',').last.strip if @page.at('.p_location_header')
+	    	@country ||= page.at('.p_location_header').text.rpartition(',').last.strip if page.at('.p_location_header')
 	    end
 
 	    def skills
-	    	@skills ||= @page.at('#ytdpbox-pskills').search('.row.spanalpha.boxelminline').map(&:text) if @page.at('#ytdpbox-pskills')
+	    	@skills ||= page.at('#ytdpbox-pskills').search('.row.spanalpha.boxelminline').map(&:text) if page.at('#ytdpbox-pskills')
 	    end
 
 	    def picture
 	    end
 
 	    def social_links
-	    	return [] if @page.at(".profil_rresult_container") == nil
-			@social_links ||= @page.at(".profil_rresult_container").search('.extsh_ctn').map do |row|
+	    	return [] if page.at(".profil_rresult_container") == nil
+			@social_links ||= page.at(".profil_rresult_container").search('.extsh_ctn').map do |row|
 				next unless row.at('.weblink_url')
 				url = row.at('.weblink_url').text
 				{name: url.match(/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)/)[2].split('.').last.capitalize, link: url}
@@ -142,7 +145,7 @@ module Yatedo
 
 		def get_companies(current)
 			companies = []
-			exp_pro    = @page.at('#ytdpbox-pro')
+			exp_pro    = page.at('#ytdpbox-pro')
 			if exp_pro
 				exp_pro.search('.row.spanalpha.boxelm').map do |row|
 					company             = {}
@@ -170,7 +173,7 @@ module Yatedo
 		def education
 			educations = []
 
-			noko_educations = @page.at('#ytdpbox-edu')
+			noko_educations = page.at('#ytdpbox-edu')
 			if noko_educations
 				noko_educations.search('.row.spanalpha.boxelm').map do |row|
 					education = {}
