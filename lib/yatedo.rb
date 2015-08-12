@@ -55,13 +55,18 @@ module Yatedo
 			cookie = Mechanize::Cookie.new :domain => '.yatedo.fr', name: 'yatedo[rlg]', value: 'fr', :path => '/', :expires => (Date.today + 1).to_s
 			agent.cookie_jar << cookie
 
-			@page  		= agent.get('http://www.yatedo.fr' + headline.at('a')['href'])
+			profile_link = if headline.at('a')
+				'http://www.yatedo.fr' + headline.at('a')['href']
+			else
+				headline.at('span')['_ym_href']
+			end
+			@page  		= agent.get(profile_link)
 		end
 
 	    def parse_date(date)
-			return nil if date.blank?
-			date = "#{date}-01-01" if date =~ /^(19|20)\d{2}$/
 			begin
+				return nil if date.strip!.blank?
+				date = "#{date}-01-01" if date =~ /^(19|20)\d{2}$/
 				Date.parse(date)
 			rescue
 				nil
@@ -73,23 +78,23 @@ module Yatedo
 	    end
 
 	    def first_name
-			@first_name ||= @page.at('.p_name_header').text.rpartition(' ').first
+			@first_name ||= @page.at('.p_name_header').text.rpartition(' ').first if @page.at('.p_name_header')
 	    end
 
 	    def last_name
-			@last_name ||= @page.at('.p_name_header').text.rpartition(' ').last
+			@last_name ||= @page.at('.p_name_header').text.rpartition(' ').last if @page.at('.p_name_header')
 	    end
 
 	    def title
-			@title ||= @page.at('.p_headline_header').text.strip
+			@title ||= @page.at('.p_headline_header').text.strip if @page.at('.p_headline_header')
 	    end
 
 	    def location
-	    	@location ||= @page.at('.p_location_header').text.rpartition(',').first.strip
+	    	@location ||= @page.at('.p_location_header').text.rpartition(',').first.strip if @page.at('.p_location_header')
 	    end
 
 	    def country
-	    	@country ||= @page.at('.p_location_header').text.rpartition(',').last.strip
+	    	@country ||= @page.at('.p_location_header').text.rpartition(',').last.strip if @page.at('.p_location_header')
 	    end
 
 	    def skills
@@ -100,6 +105,7 @@ module Yatedo
 	    end
 
 	    def social_links
+	    	return [] if @page.at(".profil_rresult_container") == nil
 			@social_links ||= @page.at(".profil_rresult_container").search('.extsh_ctn').map do |row|
 				url = row.at('.weblink_url').text
 				{name: url.match(/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)/)[2].split('.').last.capitalize, link: url}
@@ -113,12 +119,15 @@ module Yatedo
 	    end
 
 	    def groups
+	    	[]
 	    end
 
 	    def languages
+	    	[]
 	    end
 
 	    def recommended_visitors
+	    	[]
 	    end
 
 	    def current_companies
@@ -132,24 +141,26 @@ module Yatedo
 		def get_companies(current)
 			companies = []
 			exp_pro    = @page.at('#ytdpbox-pro')
-			exp_pro.search('.row.spanalpha.boxelm').map do |row|
-				company             = {}
+			if exp_pro
+				exp_pro.search('.row.spanalpha.boxelm').map do |row|
+					company             = {}
 
-				date_begin, date_end = row.search('.newrow/div/span').map(&:text)
+					date_begin, date_end = row.search('.newrow/div/span').map(&:text)
 
-				company[:start_date] 	= parse_date(date_begin)
-				company[:end_date] 		= parse_date(date_end)
+					company[:start_date] 	= parse_date(date_begin)
+					company[:end_date] 		= parse_date(date_end)
 
-				current_company 		= (company[:start_date] and date_end.blank? == false and company[:end_date] == nil)
-				next if current != current_company
+					current_company 		= (company[:start_date] and date_end.blank? == false and company[:end_date] == nil)
+					next if current != current_company
 
-				title, company_name	= row.search('.blink/a').map(&:text)
-				company[:title] 	= title.strip 		 if title
-				company[:company] 	= company_name.strip if company
+					title, company_name	= row.search('.blink/a').map(&:text)
+					company[:title] 	= title.strip 		 if title
+					company[:company] 	= company_name.strip if company
 
-				company[:description] 	= row.at('.newrow.desc').text.gsub(/\s+|\n/, ' ').strip
+					company[:description] 	= row.at('.newrow.desc').text.gsub(/\s+|\n/, ' ').strip
 
-				companies << company
+					companies << company
+				end
 			end
 			companies
 		end
@@ -168,8 +179,8 @@ module Yatedo
 
 					date_begin, date_end = row.at('.newrow/div').text.gsub(/\s+|\n/, ' ').split('-')
 
-					education[:start_date] 	= parse_date(date_begin.strip)
-					education[:end_date] 	= parse_date(date_end.strip)
+					education[:start_date] 	= parse_date(date_begin)
+					education[:end_date] 	= parse_date(date_end)
 
 					educations << education
 				end
