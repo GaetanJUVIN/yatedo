@@ -44,7 +44,7 @@ module Yatedo
 	class Profile
 		include Yatedo::HttpClient
 
-		attr_accessor :page
+		attr_accessor :page, :url
 
 		def initialize(nokogiri_object, options)
 			@options 	= options
@@ -55,17 +55,18 @@ module Yatedo
 			cookie = Mechanize::Cookie.new :domain => '.yatedo.fr', name: 'yatedo[rlg]', value: 'fr', :path => '/', :expires => (Date.today + 1).to_s
 			agent.cookie_jar << cookie
 
-			profile_link = if headline.at('a')
+			@url = if headline.at('a')
 				'http://www.yatedo.fr' + headline.at('a')['href']
 			else
 				headline.at('span')['_ym_href']
 			end
-			@page  		= agent.get(profile_link)
+			@page  		= agent.get(@url)
 		end
 
 	    def parse_date(date)
 			begin
-				return nil if date.strip!.blank?
+				date = date.strip
+				return nil if date.blank?
 				date = "#{date}-01-01" if date =~ /^(19|20)\d{2}$/
 				Date.parse(date)
 			rescue
@@ -107,6 +108,7 @@ module Yatedo
 	    def social_links
 	    	return [] if @page.at(".profil_rresult_container") == nil
 			@social_links ||= @page.at(".profil_rresult_container").search('.extsh_ctn').map do |row|
+				next unless row.at('.weblink_url')
 				url = row.at('.weblink_url').text
 				{name: url.match(/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)/)[2].split('.').last.capitalize, link: url}
 			end
@@ -152,10 +154,10 @@ module Yatedo
 
 					current_company 		= (company[:start_date] and date_end.blank? == false and company[:end_date] == nil)
 					next if current != current_company
-
+	
 					title, company_name	= row.search('.blink/a').map(&:text)
 					company[:title] 	= title.strip 		 if title
-					company[:company] 	= company_name.strip if company
+					company[:company] 	= company_name.strip if company_name
 
 					company[:description] 	= row.at('.newrow.desc').text.gsub(/\s+|\n/, ' ').strip
 
