@@ -5,8 +5,6 @@
 ## Gaetan JUVIN 14/08/2015
 ##
 
-require 'http_client'
-
 module Yatedo
 	class Profile
 		include Yatedo::HttpClient
